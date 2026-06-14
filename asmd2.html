@@ -1610,7 +1610,7 @@ function importSettings(){
       PASS = data.password;
       clients = data.clients;
       localStorage.setItem(PASS_KEY, PASS);
-      localStorage.setItem("asmd2_clients_v3", JSON.stringify(clients));
+      // localStorage.setItem("asmd2_clients_v3", JSON.stringify(clients));
       alert("✅ Settings imported! / تم استيراد الإعدادات");
       setTimeout(()=>location.reload(), 500);
     } catch(e){
@@ -1718,13 +1718,7 @@ function copyPW(pw,el){navigator.clipboard.writeText(pw).then(()=>{const o=el.te
 function openIP(ip){window.open("http://"+ip,"_blank");}
 
 // ── CLIENTS ───────────────────────────────────────────────────
-const DEFAULTS=[
-  {"name": "بيت أبوي", "ip": "192.168.2.9", "mac": "30:DE:4B:68:E1:F4", "model": "tp-link m4r Router 192.168.68.1", "type": "auto", "label": ""},
-  {"name": "حسين ناصر", "ip": "192.168.2.6", "mac": "BC:07:1D:6A:7D:6E", "model": "tp link archer c6 ac 1200", "type": "auto", "label": ""},
-  {"name": "DESKTOP-TTADP3H", "ip": "192.168.2.5", "mac": "48:4d:7e:c3:75:7c", "model": "unknown", "type": "auto", "label": "📥 Imported"},
-  {"name": "decoMeshM4R", "ip": "192.168.2.3", "mac": "ac:15:a2:8a:a7:09", "model": "decoMeshM4R", "type": "auto", "label": "📥 Imported"},
-  {"name": "مبهول", "ip": "192.168.2.10", "mac": "b4:b0:24:19:a7:30", "model": "TL-WA901N", "type": "auto", "label": "lan3"}
-];
+const DEFAULTS=[];
 function cload(){ return JSON.parse(JSON.stringify(DEFAULTS)); }
 function persist(){
   const el=document.getElementById("saveStatus");
@@ -2029,7 +2023,7 @@ function getAvailSubnets(){
   ];
 }
 function saveAvailSubnets(arr){
-  localStorage.setItem(AVAIL_SUBNETS_KEY, JSON.stringify(arr));
+  // localStorage.setItem(AVAIL_SUBNETS_KEY, JSON.stringify(arr));
 }
 
 let availCurrentSubnet = "all"; // "all" | "s1" | "s2" | ...
@@ -2421,7 +2415,7 @@ function n2Load(){
 }
 
 function n2Save(){
-  try{ localStorage.setItem(N2_KEY, JSON.stringify(n2Data)); }catch(e){}
+  try{ // localStorage.setItem(N2_KEY, JSON.stringify(n2Data)); }catch(e){}
 }
 
 function n2Init(){
