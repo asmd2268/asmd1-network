@@ -1722,9 +1722,17 @@ function openIP(ip){window.open("http://"+ip,"_blank");}
 
 // ── CLIENTS ───────────────────────────────────────────────────
 const DEFAULTS=[];
-// ── لا تخزين محلي للبيانات — Supabase هو المصدر الوحيد ──────────
-function cload(){ return JSON.parse(JSON.stringify(DEFAULTS)); }
+// ── localStorage = cache محلي سريع، Supabase = المصدر الرئيسي ──
+const CKEY = "asmd2_clients_v3";
+function cload(){
+  try{
+    const s=localStorage.getItem(CKEY);
+    if(s){ const p=JSON.parse(s); if(Array.isArray(p)&&p.length>0) return p; }
+  }catch(e){}
+  return JSON.parse(JSON.stringify(DEFAULTS));
+}
 function persist(){
+  try{ localStorage.setItem(CKEY, JSON.stringify(clients)); }catch(e){}
   try{
     const el=document.getElementById("saveStatus");
     if(el){el.textContent="⏳ جاري الحفظ...";el.classList.remove("ok");}
@@ -2829,8 +2837,16 @@ function sbCollect(){
 
 async function sbApply(obj){
   let changed=false;
-  if(Array.isArray(obj.clients)){clients=obj.clients;persist();renderClients();changed=true;}
-  if(Array.isArray(obj.devData)){devData=obj.devData;dfil=[...devData];drender(dfil);changed=true;}
+  if(Array.isArray(obj.clients)&&obj.clients.length>0){
+    clients=obj.clients;
+    try{localStorage.setItem(CKEY,JSON.stringify(clients));}catch(e){}
+    renderClients();changed=true;
+  }
+  if(Array.isArray(obj.devData)&&obj.devData.length>0){
+    devData=obj.devData;
+    try{localStorage.setItem("asmd2_devices_v3",JSON.stringify(devData));}catch(e){}
+    dfil=[...devData];drender(dfil);changed=true;
+  }
   if(obj.password){PASS=obj.password;localStorage.setItem(PASS_KEY,PASS);}
   return changed;
 }
