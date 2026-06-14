@@ -1691,6 +1691,12 @@ function saveNewPassword(){
   
   PASS = newPw;
   localStorage.setItem(PASS_KEY, newPw);
+  const sb=getSupabase();
+  if(sb){
+    sb.from("app_settings").upsert({key:"asmd1_password",value:newPw},{onConflict:"key"})
+      .then(()=>toast("✅ تم رفع كلمة المرور إلى Supabase"))
+      .catch(e=>console.error("save password:",e));
+  }
   err.style.display = "none";
   
   document.getElementById("oldPw").value = "";
@@ -2219,6 +2225,11 @@ function getAvailSubnets(){
 }
 function saveAvailSubnets(arr){
   localStorage.setItem(AVAIL_SUBNETS_KEY, JSON.stringify(arr));
+  const sb=getSupabase();
+  if(sb){
+    sb.from("app_settings").upsert({key:"asmd1_subnets",value:JSON.stringify(arr)},{onConflict:"key"})
+      .then(()=>{}).catch(e=>console.error("saveAvailSubnets:",e));
+  }
 }
 
 let availCurrentSubnet = "all"; // "all" | "s1" | "s2" | ...
@@ -2610,6 +2621,63 @@ function n2Load(){
 
 function n2Save(){
   try{ localStorage.setItem(N2_KEY, JSON.stringify(n2Data)); }catch(e){}
+  n2AutoSaveSupabase();
+}
+
+let n2SaveTimer = null;
+function n2AutoSaveSupabase(){
+  clearTimeout(n2SaveTimer);
+  n2SaveTimer = setTimeout(()=> sbPushNet2(true), 4000);
+}
+
+async function sbPushNet2(silent=false){
+  const sb=getSupabase(); if(!sb) return;
+  try{
+    const cRows=n2Data.clients.map((c,i)=>({
+      id:i+1, net:"asmd1_n2",
+      name:c.name||"", ip:c.ip||"", mac:c.mac||"",
+      model:c.model||"", type:c.type||"auto",
+      label:c.label||"", row_color:c.rowColor||""
+    }));
+    await sb.from("net2_clients").delete().eq("net","asmd1_n2");
+    if(cRows.length>0) await sb.from("net2_clients").insert(cRows);
+
+    const dRows=n2Data.devData.map((d,i)=>({
+      id:i+1, net:"asmd1_n2",
+      name:d.name||"", mode:d.mode||"AP",
+      ssid:d.ssid||"", product:d.product||"",
+      ip:d.ip||"", mac:d.mac||"",
+      pw:d.pw||"", row_color:d.rowColor||""
+    }));
+    await sb.from("net2_devices").delete().eq("net","asmd1_n2");
+    if(dRows.length>0) await sb.from("net2_devices").insert(dRows);
+
+    await sb.from("app_settings").upsert({key:"asmd1_n2_subnet",value:n2Data.subnet},{onConflict:"key"});
+    if(!silent) toast("✅ Network 2 محفوظ على Supabase!");
+  }catch(e){
+    if(!silent) toast("❌ فشل حفظ Network 2: "+e.message);
+    console.error("sbPushNet2:", e);
+  }
+}
+
+async function sbPullNet2(){
+  const sb=getSupabase(); if(!sb) return;
+  try{
+    const {data:cData}=await sb.from("net2_clients").select("*").eq("net","asmd1_n2").order("id");
+    const {data:dData}=await sb.from("net2_devices").select("*").eq("net","asmd1_n2").order("id");
+    const {data:sData}=await sb.from("app_settings").select("value").eq("key","asmd1_n2_subnet").single();
+
+    if(cData && cData.length>0){
+      n2Data.clients=cData.map(r=>({name:r.name,ip:r.ip,mac:r.mac,model:r.model,type:r.type,label:r.label,rowColor:r.row_color}));
+    }
+    if(dData && dData.length>0){
+      n2Data.devData=dData.map(r=>({name:r.name,mode:r.mode,ssid:r.ssid,product:r.product,ip:r.ip,mac:r.mac,pw:r.pw,rowColor:r.row_color}));
+    }
+    if(sData && sData.value) n2Data.subnet=sData.value;
+    localStorage.setItem(N2_KEY, JSON.stringify(n2Data));
+  }catch(e){
+    console.error("sbPullNet2:", e);
+  }
 }
 
 function n2Init(){
@@ -3021,7 +3089,7 @@ async function sbApply(obj){
     drender(dfil);
     changed=true;
   }
-  if(obj.password){ PASS=obj.password; localStorage.setItem(PASS_KEY,PASS); }
+  if(obj.password && obj.password.length>=4){ PASS=obj.password; localStorage.setItem(PASS_KEY,PASS); }
   return changed;
 }
 
@@ -3105,8 +3173,17 @@ async function sbPull(){
 }
 
 // Keep same API surface as old gist functions so UI buttons still work
-function gistPush(silent=false){ return sbPush(silent); }
-function gistPull(){ return sbPull(); }
+function gistPush(silent=false){
+  sbPush(silent);
+  sbPushNet2(true);
+  const sb=getSupabase();
+  if(sb){
+    sb.from("app_settings").upsert({key:"asmd1_password",value:PASS},{onConflict:"key"}).catch(e=>console.error(e));
+    const savedSubs=localStorage.getItem(AVAIL_SUBNETS_KEY);
+    if(savedSubs) sb.from("app_settings").upsert({key:"asmd1_subnets",value:savedSubs},{onConflict:"key"}).catch(e=>console.error(e));
+  }
+}
+function gistPull(){ return sbPullSafe(); }
 function gistAutoSave(){
   clearTimeout(gistSaveTimer);
   gistSaveTimer=setTimeout(()=>sbPush(true),4000);
@@ -3124,33 +3201,41 @@ async function sbPullSafe(){
   if(!sb){ gistSetStatus("⚡ اتصل بـ Supabase","#f59e0b"); return; }
   gistSetStatus("⏳ جاري التحميل...","#f59e0b");
   try{
-    const {data:cData,error:cErr} = await sb.from("asmd1_clients").select("*").order("id");
+    // ① جلب الإعدادات
+    const {data:settings} = await sb.from("app_settings").select("*");
+    if(settings){
+      const pw=settings.find(s=>s.key==="asmd1_password");
+      if(pw && pw.value && pw.value.length>=4){
+        PASS=pw.value; localStorage.setItem(PASS_KEY,PASS);
+      }
+      const subs=settings.find(s=>s.key==="asmd1_subnets");
+      if(subs && subs.value){
+        try{ const arr=JSON.parse(subs.value); if(Array.isArray(arr)) localStorage.setItem(AVAIL_SUBNETS_KEY,subs.value); }catch(e){}
+      }
+    }
+
+    // ② جلب Clients و Devices
+    const {data:cData,error:cErr}=await sb.from("asmd1_clients").select("*").order("id");
     if(cErr) throw cErr;
-    const {data:dData,error:dErr} = await sb.from("asmd1_devices").select("*").order("id");
+    const {data:dData,error:dErr}=await sb.from("asmd1_devices").select("*").order("id");
     if(dErr) throw dErr;
 
-    // إذا Supabase فارغ → ارفع البيانات المحلية عليه
     if((!cData || cData.length===0) && clients.length>0){
       gistSetStatus("⬆️ Supabase فارغ — جاري الرفع...","#f59e0b");
       await sbPush(true);
+      await sb.from("app_settings").upsert({key:"asmd1_password",value:PASS},{onConflict:"key"});
+      const savedSubs=localStorage.getItem(AVAIL_SUBNETS_KEY);
+      if(savedSubs) await sb.from("app_settings").upsert({key:"asmd1_subnets",value:savedSubs},{onConflict:"key"});
+      await sbPushNet2(true);
       gistSetStatus("✅ تم رفع البيانات المحلية","#22c55e");
       setTimeout(()=>gistSetStatus("⚡ إعدادات","#64748b"),3000);
       return;
     }
 
-    // Supabase فيه بيانات → طبّقها
     if(cData && cData.length>0){
-      const obj = {
-        clients: cData.map(r=>({
-          name:r.name,ip:r.ip,mac:r.mac,
-          model:r.model,type:r.type,
-          label:r.label,rowColor:r.row_color
-        })),
-        devData: (dData||[]).map(r=>({
-          n:r.n,name:r.name,mode:r.mode,
-          ssid:r.ssid,product:r.product,
-          ip:r.ip,mac:r.mac,pw:r.pw,rowColor:r.row_color
-        }))
+      const obj={
+        clients:cData.map(r=>({name:r.name,ip:r.ip,mac:r.mac,model:r.model,type:r.type,label:r.label,rowColor:r.row_color})),
+        devData:(dData||[]).map(r=>({n:r.n,name:r.name,mode:r.mode,ssid:r.ssid,product:r.product,ip:r.ip,mac:r.mac,pw:r.pw,rowColor:r.row_color}))
       };
       await sbApply(obj);
       gistSetStatus("✅ تمت المزامنة","#22c55e");
@@ -3158,13 +3243,17 @@ async function sbPullSafe(){
     } else {
       gistSetStatus("⚡ إعدادات","#64748b");
     }
+
+    // ③ جلب Network 2
+    await sbPullNet2();
+
   }catch(e){
     gistSetStatus("❌ فشل الاتصال","#dc2626");
     console.error("sbPullSafe error:",e);
   }
 }
 
-// Auto-load on startup — لا نمسح البيانات المحلية إلا إذا Supabase فيه بيانات فعلية
+// Auto-load on startup
 (async function sbAutoLoad(){
   const sb=getSupabase();
   if(!sb){
@@ -3173,7 +3262,7 @@ async function sbPullSafe(){
   }
   gistSetStatus("⏳ جاري التحميل...","#f59e0b");
   try{
-    await sbPullSafe(); // نسخة آمنة لا تمسح البيانات المحلية
+    await sbPullSafe();
   }catch(e){
     gistSetStatus("⚡ Supabase","#94a3b8");
     console.log("Supabase auto-load:",e.message);
