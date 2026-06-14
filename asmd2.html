@@ -643,79 +643,25 @@ function sortInventory(field){
 
 
 // ── SUPABASE ────────────────────────────────────────────────────────
-const SUPABASE_URL_KEY  = "asmd2_sb_url";
-const SUPABASE_KEY_KEY  = "asmd2_sb_key";
-let _sbClient = null;
+// ── SUPABASE — بيانات الاتصال ثابتة في الكود ──────────────────────
+const SUPABASE_URL = "https://wnbhejezuleqoxshnddm.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InduYmhlamV6dWxlcW94c2huZGRtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEzNjkxNzAsImV4cCI6MjA5Njk0NTE3MH0.tYPEcqoLj3gz84EesfQCb4OVK1cxRokd8XAAnBa6VhU";
+let _sbClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-function sbUrl(){ return localStorage.getItem(SUPABASE_URL_KEY)||""; }
-function sbKey(){ return localStorage.getItem(SUPABASE_KEY_KEY)||""; }
-function getSupabase(){
-  if(_sbClient) return _sbClient;
-  const u=sbUrl(), k=sbKey();
-  if(u&&k){ _sbClient=supabase.createClient(u,k); return _sbClient; }
-  return null;
-}
+function getSupabase(){ return _sbClient; }
 
 function openSupabaseSetupModal(){
-  const existing=document.getElementById("sbModal");
-  if(existing){existing.remove();return;}
-  const u=sbUrl(),k=sbKey(),connected=!!(u&&k);
-  const modal=document.createElement("div");
-  modal.id="sbModal";
-  modal.style.cssText="position:fixed;inset:0;background:#0007;z-index:9999;display:flex;align-items:center;justify-content:center;";
-  modal.innerHTML=`
-  <div style="background:#fff;border-radius:16px;padding:28px;width:420px;max-width:95vw;box-shadow:0 12px 48px #0005;">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
-      <h2 style="font-size:16px;color:#1a4731;margin:0;">⚡ Supabase Sync — ASMD2</h2>
-      <button onclick="document.getElementById('sbModal').remove()" style="background:none;border:none;font-size:18px;cursor:pointer;color:#94a3b8;">✕</button>
-    </div>
-    <div style="padding:10px 14px;border-radius:8px;font-size:12px;margin-bottom:16px;background:${connected?'#dcfce7':'#fef3c7'};color:${connected?'#166534':'#92400e'};">
-      ${connected?'✅ متصل بـ Supabase':'🔑 أدخل بيانات مشروع Supabase'}
-    </div>
-    <label style="font-size:12px;color:#64748b;font-weight:600;">Project URL</label>
-    <input id="sbUrlInp" value="${u}" placeholder="https://xxxx.supabase.co"
-      style="width:100%;padding:9px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:12px;font-family:monospace;margin:6px 0 14px;box-sizing:border-box;">
-    <label style="font-size:12px;color:#64748b;font-weight:600;">Anon Key</label>
-    <input id="sbKeyInp" type="password" value="${k}" placeholder="eyJh..."
-      style="width:100%;padding:9px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:12px;font-family:monospace;margin:6px 0 4px;box-sizing:border-box;">
-    <p style="font-size:11px;color:#94a3b8;margin:0 0 20px;">
-      <a href="https://supabase.com/dashboard" target="_blank" style="color:#2563eb;">🔗 فتح Supabase Dashboard</a>
-      — Settings → API
-    </p>
-    <div style="display:flex;flex-direction:column;gap:8px;">
-      <button onclick="sbSaveSettings()" style="padding:11px;background:#1a4731;color:#fff;border:none;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;">💾 حفظ الإعدادات</button>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-        <button onclick="sbSaveSettings(true)" style="padding:10px;background:#22c55e;color:#fff;border:none;border-radius:9px;font-size:12px;font-weight:600;cursor:pointer;">☁️ رفع الآن</button>
-        <button onclick="sbSaveSettings(false,true)" style="padding:10px;background:#3b82f6;color:#fff;border:none;border-radius:9px;font-size:12px;font-weight:600;cursor:pointer;">⬇️ جلب الآن</button>
-      </div>
-      ${connected?`<button onclick="sbDisconnect()" style="padding:9px;background:#fff;color:#dc2626;border:1px solid #fecaca;border-radius:9px;font-size:12px;cursor:pointer;">🗑 إلغاء الربط</button>`:''}
-    </div>
-  </div>`;
-  document.body.appendChild(modal);
-  modal.onclick=(e)=>{if(e.target===modal)modal.remove();};
+  toast("⚡ Supabase متصل تلقائياً — " + SUPABASE_URL.split("//")[1].split(".")[0]);
 }
 
-function sbSaveSettings(pushNow=false,pullNow=false){
-  const u=document.getElementById("sbUrlInp")?.value.trim();
-  const k=document.getElementById("sbKeyInp")?.value.trim();
-  if(u) localStorage.setItem(SUPABASE_URL_KEY,u);
-  if(k) localStorage.setItem(SUPABASE_KEY_KEY,k);
-  _sbClient=null;
-  document.getElementById("sbModal")?.remove();
-  gistSetStatus("⚡ Supabase","#64748b");
+function sbSaveSettings(pushNow=false, pullNow=false){
   if(pushNow) sbPush();
   else if(pullNow) sbPull();
-  else toast("✅ تم حفظ إعدادات Supabase!");
+  else toast("✅ Supabase متصل!");
 }
 
 function sbDisconnect(){
-  if(!confirm("سيتم حذف بيانات الاتصال من هذا الجهاز فقط. متأكد؟"))return;
-  localStorage.removeItem(SUPABASE_URL_KEY);
-  localStorage.removeItem(SUPABASE_KEY_KEY);
-  _sbClient=null;
-  document.getElementById("sbModal")?.remove();
-  gistSetStatus("⚡ Supabase","#94a3b8");
-  toast("🔌 تم إلغاء الربط");
+  toast("⚠️ الاتصال ثابت في الكود — لا يمكن إلغاؤه من هنا");
 }
 
 // Auto sync when data changes
@@ -3038,7 +2984,6 @@ function gistSetupModal(){ openSupabaseSetupModal(); }
 // ── sbPullSafe: لا تمسح البيانات المحلية إذا Supabase فارغ ─────────
 async function sbPullSafe(){
   const sb=getSupabase();
-  if(!sb){ gistSetStatus("⚡ اتصل بـ Supabase","#f59e0b"); return; }
   gistSetStatus("⏳ جاري التحميل...","#f59e0b");
   try{
     // ① جلب الإعدادات (كلمة السر + subnets + n2 subnet)
@@ -3110,12 +3055,7 @@ async function sbPullSafe(){
 }
 
 (async function sbAutoLoad(){
-  const sb=getSupabase();
-  if(!sb){
-    gistSetStatus("⚡ اتصل بـ Supabase","#f59e0b");
-    return;
-  }
-  gistSetStatus("⏳ جاري التحميل...","#f59e0b");
+  gistSetStatus("✅ Supabase","#22c55e");
   try{
     await sbPullSafe();
   }catch(e){
