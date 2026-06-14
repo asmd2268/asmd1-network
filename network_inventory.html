@@ -3027,8 +3027,14 @@ function sbCollect(){
 
 async function sbApply(obj){
   let changed = false;
-  if(Array.isArray(obj.clients)){ clients=obj.clients; persist(); renderClients(); changed=true; }
-  if(Array.isArray(obj.devData)){ devData=obj.devData; dfil=[...devData]; drender(dfil); changed=true; }
+  if(Array.isArray(obj.clients)){
+    if(obj.clients.length === 0 && clients.length > 0) gistAutoSave();
+    else { clients=obj.clients; persist(); renderClients(); changed=true; }
+  }
+  if(Array.isArray(obj.devData)){
+    if(obj.devData.length === 0 && devData.length > 0) gistAutoSave();
+    else { devData=obj.devData; dfil=[...devData]; drender(dfil); changed=true; }
+  }
   if(obj.password){ PASS=obj.password; localStorage.setItem(PASS_KEY,PASS); }
   return changed;
 }
