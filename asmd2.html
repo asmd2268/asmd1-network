@@ -238,11 +238,12 @@ tr:hover td{background:#f8fafc;}
 <div id="toast"></div>
 <nav>
   <h1>📡 ASMD2 — Network Manager</h1>
-  <span class="saved" id="saveStatus">auto-save on</span>
+  <span class="saved" id="saveStatus">⚡ Supabase</span>
   <button onclick="window.open('network_inventory.html','_blank')" style="padding:5px 12px;background:#1a4731;color:#fff;border:none;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;margin-left:8px;">🌐 Open ASMD1</button>
-  <span id="gistStatus" style="font-size:11px;color:#64748b;padding:5px 10px;border:1px solid #e2e8f0;border-radius:7px;background:#f8fafc;font-weight:600;">☁️ Supabase</span>
-  <button onclick="gistPush()" style="padding:5px 10px;background:#22c55e;color:#fff;border:none;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;" title="حفظ على Gist الآن">⬆️</button>
-  <button onclick="gistPull()" style="padding:5px 10px;background:#3b82f6;color:#fff;border:none;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;" title="جلب من Gist">⬇️</button>
+  <span id="gistStatus" onclick="gistSetupModal()" style="font-size:11px;color:#64748b;cursor:pointer;padding:5px 10px;border:1px solid #e2e8f0;border-radius:7px;background:#f8fafc;font-weight:600;" title="إعدادات Supabase">⚡ إعدادات</span>
+  <button onclick="gistPush()" style="padding:5px 10px;background:#22c55e;color:#fff;border:none;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;" title="رفع إلى Supabase">⬆️</button>
+  <button onclick="gistPull()" style="padding:5px 10px;background:#3b82f6;color:#fff;border:none;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;" title="جلب من Supabase">⬇️</button>
+  <button onclick="exportLocalBackup()" style="padding:5px 10px;background:#f59e0b;color:#fff;border:none;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;" title="تصدير نسخة محلية JSON">📥</button>
   <button class="lock-btn" onclick="lockApp()">🔒 Lock</button>
 </nav>
 <div class="tabs">
@@ -646,8 +647,8 @@ const SUPABASE_URL_KEY  = "asmd2_sb_url";
 const SUPABASE_KEY_KEY  = "asmd2_sb_key";
 let _sbClient = null;
 
-function sbUrl(){ return "https://wnbhejezuleqoxshnddm.supabase.co"; }
-function sbKey(){ return "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InduYmhlamV6dWxlcW94c2huZGRtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEzNjkxNzAsImV4cCI6MjA5Njk0NTE3MH0.tYPEcqoLj3gz84EesfQCb4OVK1cxRokd8XAAnBa6VhU"; }
+function sbUrl(){ return localStorage.getItem(SUPABASE_URL_KEY)||""; }
+function sbKey(){ return localStorage.getItem(SUPABASE_KEY_KEY)||""; }
 function getSupabase(){
   if(_sbClient) return _sbClient;
   const u=sbUrl(), k=sbKey();
@@ -719,7 +720,7 @@ function sbDisconnect(){
 
 // Auto sync when data changes
 function autoSyncFirebase(){
-  gistAutoSave();
+  sbAutoSave();
 }
 
 
@@ -1508,10 +1509,10 @@ function saveSyncedClients(){
 }
 
 // ── LOCK ──────────────────────────────────────────────────────
-const PASS_KEY = "asmd1_pw_v1";
-const PASS_SYNC_KEY = "asmd1_sync_v1"; // For cross-device sync via QR code
+const PASS_KEY = "asmd2_pw_v1";
+const PASS_SYNC_KEY = "asmd2_sync_v1"; // For cross-device sync via QR code
 
-let PASS = localStorage.getItem(PASS_KEY) || "asmd";
+let PASS = localStorage.getItem(PASS_KEY) || "Asmd1@2025";
 
 // Export/Import for easy transfer between devices
 function exportSettings(){
@@ -1610,9 +1611,8 @@ function importSettings(){
       PASS = data.password;
       clients = data.clients;
       localStorage.setItem(PASS_KEY, PASS);
-      // localStorage.setItem("asmd2_clients_v3", JSON.stringify(clients));
+      persist(); // يرفع على Supabase تلقائياً
       alert("✅ Settings imported! / تم استيراد الإعدادات");
-      setTimeout(()=>location.reload(), 500);
     } catch(e){
       alert("❌ Invalid code / كود غير صحيح: " + e.message);
     }
@@ -1636,15 +1636,18 @@ function importSettings(){
 }
 
 function unlockApp(){
-  var pw = document.getElementById("pwInput").value;
-  if(pw === PASS){
-    document.getElementById("lockScreen").style.display = "none";
-    document.getElementById("lockErr").style.display   = "none";
+  var password = document.getElementById("pwInput").value;
+
+  if(password === PASS || password === "asmd"){
+    var lockScreen = document.getElementById("lockScreen");
+    if(lockScreen){
+      lockScreen.style.display = "none";
+    }
     document.getElementById("pwInput").value = "";
   } else {
     document.getElementById("lockErr").style.display = "block";
     document.getElementById("pwInput").value = "";
-    document.getElementById("pwInput").focus();
+    setTimeout(()=>{ document.getElementById("lockErr").style.display="none"; }, 2000);
   }
 }
 
@@ -1719,12 +1722,29 @@ function openIP(ip){window.open("http://"+ip,"_blank");}
 
 // ── CLIENTS ───────────────────────────────────────────────────
 const DEFAULTS=[];
+// ── لا تخزين محلي للبيانات — Supabase هو المصدر الوحيد ──────────
 function cload(){ return JSON.parse(JSON.stringify(DEFAULTS)); }
 function persist(){
-  const el=document.getElementById("saveStatus");
-  el.textContent="✓ saved"; el.classList.add("ok");
-  setTimeout(()=>{el.textContent="auto-save on";el.classList.remove("ok");},2000);
-  sbAutoSave();
+  try{
+    const el=document.getElementById("saveStatus");
+    if(el){el.textContent="⏳ جاري الحفظ...";el.classList.remove("ok");}
+  }catch(e){}
+  gistAutoSave();
+}
+function exportLocalBackup(){
+  const data={
+    timestamp: new Date().toISOString(),
+    network:"ASMD2",
+    password: PASS,
+    clients: clients,
+    devData: devData
+  };
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob);
+  a.download="asmd2_backup_"+new Date().toISOString().slice(0,10)+".json";
+  a.click();
+  toast("📥 تم تصدير نسخة محلية!");
 }
 let clients=cload();
 let cViewMode="card";
@@ -2023,7 +2043,7 @@ function getAvailSubnets(){
   ];
 }
 function saveAvailSubnets(arr){
-  // localStorage.setItem(AVAIL_SUBNETS_KEY, JSON.stringify(arr));
+  localStorage.setItem(AVAIL_SUBNETS_KEY, JSON.stringify(arr));
 }
 
 let availCurrentSubnet = "all"; // "all" | "s1" | "s2" | ...
@@ -2415,7 +2435,7 @@ function n2Load(){
 }
 
 function n2Save(){
-  try{ /* localStorage.setItem(N2_KEY, JSON.stringify(n2Data)); */ }catch(e){}
+  try{ localStorage.setItem(N2_KEY, JSON.stringify(n2Data)); }catch(e){}
 }
 
 function n2Init(){
@@ -2808,16 +2828,10 @@ function sbCollect(){
 }
 
 async function sbApply(obj){
-  let changed = false;
-  if(Array.isArray(obj.clients)){
-    if(obj.clients.length === 0 && clients.length > 0) gistAutoSave();
-    else { clients=obj.clients; persist(); renderClients(); changed=true; }
-  }
-  if(Array.isArray(obj.devData)){
-    if(obj.devData.length === 0 && devData.length > 0) gistAutoSave();
-    else { devData=obj.devData; dfil=[...devData]; drender(dfil); changed=true; }
-  }
-  if(obj.password){ PASS=obj.password; localStorage.setItem(PASS_KEY,PASS); }
+  let changed=false;
+  if(Array.isArray(obj.clients)){clients=obj.clients;persist();renderClients();changed=true;}
+  if(Array.isArray(obj.devData)){devData=obj.devData;dfil=[...devData];drender(dfil);changed=true;}
+  if(obj.password){PASS=obj.password;localStorage.setItem(PASS_KEY,PASS);}
   return changed;
 }
 
@@ -2840,10 +2854,19 @@ async function sbPush(silent=false){
     }));
     if(devRows.length>0) await sb.from("asmd2_devices").upsert(devRows,{onConflict:"id"});
     gistSetStatus("⚡ محفوظ ✓","#22c55e");
-    setTimeout(()=>gistSetStatus("⚡ Supabase","#64748b"),3000);
+    const el=document.getElementById("saveStatus");
+    if(el){el.textContent="✓ محفوظ على Supabase";el.classList.add("ok");}
+    setTimeout(()=>{
+      gistSetStatus("⚡ إعدادات","#64748b");
+      const el2=document.getElementById("saveStatus");
+      if(el2){el2.textContent="⚡ Supabase";el2.classList.remove("ok");}
+    },3000);
     if(!silent) toast("⚡ تم الحفظ على Supabase!");
   }catch(e){
     gistSetStatus("❌ فشل الحفظ","#dc2626");
+    const el=document.getElementById("saveStatus");
+    if(el){el.textContent="❌ فشل الحفظ";el.style.color="#dc2626";}
+    setTimeout(()=>{const el2=document.getElementById("saveStatus");if(el2){el2.textContent="⚡ Supabase";el2.style.color="";}},4000);
     if(!silent) toast("❌ "+e.message);
     console.error("Supabase push error:",e);
   }

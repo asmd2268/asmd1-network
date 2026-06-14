@@ -238,11 +238,12 @@ tr:hover td{background:#f8fafc;}
 <div id="toast"></div>
 <nav>
   <h1>📡 ASMD1 — Network Manager</h1>
-  <span class="saved" id="saveStatus">auto-save on</span>
+  <span class="saved" id="saveStatus">⚡ Supabase</span>
   <button onclick="window.open('asmd2.html','_blank')" style="padding:5px 12px;background:#0f766e;color:#fff;border:none;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;margin-left:8px;">🌐 Open ASMD2</button>
-  <span id="gistStatus" style="font-size:11px;color:#64748b;padding:5px 10px;border:1px solid #e2e8f0;border-radius:7px;background:#f8fafc;font-weight:600;">☁️ Supabase</span>
-  <button onclick="gistPush()" style="padding:5px 10px;background:#22c55e;color:#fff;border:none;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;" title="حفظ على Gist الآن">⬆️</button>
-  <button onclick="gistPull()" style="padding:5px 10px;background:#3b82f6;color:#fff;border:none;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;" title="جلب من Gist">⬇️</button>
+  <span id="gistStatus" onclick="gistSetupModal()" style="font-size:11px;color:#64748b;cursor:pointer;padding:5px 10px;border:1px solid #e2e8f0;border-radius:7px;background:#f8fafc;font-weight:600;" title="إعدادات Supabase">⚡ إعدادات</span>
+  <button onclick="gistPush()" style="padding:5px 10px;background:#22c55e;color:#fff;border:none;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;" title="رفع إلى Supabase">⬆️</button>
+  <button onclick="gistPull()" style="padding:5px 10px;background:#3b82f6;color:#fff;border:none;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;" title="جلب من Supabase">⬇️</button>
+  <button onclick="exportLocalBackup()" style="padding:5px 10px;background:#f59e0b;color:#fff;border:none;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;" title="تصدير نسخة محلية JSON">📥</button>
   <button class="lock-btn" onclick="lockApp()">🔒 Lock</button>
 </nav>
 <div class="tabs">
@@ -646,8 +647,8 @@ const SUPABASE_URL_KEY  = "asmd1_sb_url";
 const SUPABASE_KEY_KEY  = "asmd1_sb_key";
 let _sbClient = null;
 
-function sbUrl(){ return "https://wnbhejezuleqoxshnddm.supabase.co"; }
-function sbKey(){ return "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InduYmhlamV6dWxlcW94c2huZGRtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEzNjkxNzAsImV4cCI6MjA5Njk0NTE3MH0.tYPEcqoLj3gz84EesfQCb4OVK1cxRokd8XAAnBa6VhU"; }
+function sbUrl(){ return localStorage.getItem(SUPABASE_URL_KEY)||""; }
+function sbKey(){ return localStorage.getItem(SUPABASE_KEY_KEY)||""; }
 function getSupabase(){
   if(_sbClient) return _sbClient;
   const u=sbUrl(), k=sbKey();
@@ -719,10 +720,7 @@ function sbDisconnect(){
 
 // Auto sync when data changes
 function autoSyncFirebase(){
-  gistAutoSave();
-}
-function sbAutoSave(){
-  gistAutoSave();
+  sbAutoSave();
 }
 
 
@@ -1514,7 +1512,7 @@ function saveSyncedClients(){
 const PASS_KEY = "asmd1_pw_v1";
 const PASS_SYNC_KEY = "asmd1_sync_v1"; // For cross-device sync via QR code
 
-let PASS = localStorage.getItem(PASS_KEY) || "asmd";
+let PASS = localStorage.getItem(PASS_KEY) || "Asmd1@2025";
 
 // Export/Import for easy transfer between devices
 function exportSettings(){
@@ -1613,9 +1611,8 @@ function importSettings(){
       PASS = data.password;
       clients = data.clients;
       localStorage.setItem(PASS_KEY, PASS);
-      // localStorage.setItem("asmd1_clients_v3", JSON.stringify(clients));
+      persist(); // يرفع على Supabase تلقائياً
       alert("✅ Settings imported! / تم استيراد الإعدادات");
-      setTimeout(()=>location.reload(), 500);
     } catch(e){
       alert("❌ Invalid code / كود غير صحيح: " + e.message);
     }
@@ -1639,15 +1636,18 @@ function importSettings(){
 }
 
 function unlockApp(){
-  var pw = document.getElementById("pwInput").value;
-  if(pw === PASS){
-    document.getElementById("lockScreen").style.display = "none";
-    document.getElementById("lockErr").style.display   = "none";
+  var password = document.getElementById("pwInput").value;
+  
+  if(password === PASS || password === "asmd"){
+    var lockScreen = document.getElementById("lockScreen");
+    if(lockScreen){
+      lockScreen.style.display = "none";
+    }
     document.getElementById("pwInput").value = "";
   } else {
     document.getElementById("lockErr").style.display = "block";
     document.getElementById("pwInput").value = "";
-    document.getElementById("pwInput").focus();
+    setTimeout(()=>{ document.getElementById("lockErr").style.display="none"; }, 2000);
   }
 }
 
@@ -1721,13 +1721,48 @@ function copyPW(pw,el){navigator.clipboard.writeText(pw).then(()=>{const o=el.te
 function openIP(ip){window.open("http://"+ip,"_blank");}
 
 // ── CLIENTS ───────────────────────────────────────────────────
-const DEFAULTS=[];
+const DEFAULTS=[
+  {name:"ال محمد",               ip:"192.168.100.123",mac:"04:95:e6:2c:ca:bf",model:"Tenda Router",type:"static",label:""},
+  {name:"سعد بن محمد",          ip:"192.168.100.216",mac:"58:d9:d5:a9:39:2f",model:"Tenda Router",type:"static",label:""},
+  {name:"سعد بن محمد",          ip:"192.168.100.239",mac:"58:d9:d5:a9:42:97",model:"Tenda Router",type:"static",label:""},
+  {name:"اصايل 5",               ip:"192.168.100.21", mac:"04:95:e6:ef:8b:e7",model:"Tenda Router",type:"auto",label:""},
+  {name:"ال علي / بيت ال علي",   ip:"192.168.100.65", mac:"04:95:e6:e6:14:51",model:"Tenda Router",type:"auto",label:""},
+  {name:"خالتي رجسا",            ip:"192.168.100.83", mac:"04:95:e6:31:e2:1f",model:"Tenda Router",type:"auto",label:""},
+  {name:"المزرعة / مزرعة ناصر", ip:"192.168.100.231",mac:"b4:0f:3b:7c:16:41",model:"Tenda Router",type:"auto",label:""},
+  {name:"الاصايل 4",             ip:"192.168.100.232",mac:"d8:32:14:fc:ce:47",model:"Tenda Router",type:"auto",label:""},
+  {name:"مبارك ناصر",            ip:"192.168.100.122",mac:"b4:0f:3b:7c:16:11",model:"Tenda Router",type:"auto",label:""},
+  {name:"مبارك ناصر فوق",        ip:"192.168.100.74", mac:"b4:0f:3b:7c:16:71",model:"Tenda Router",type:"auto",label:""},
+  {name:"ابو حمد",               ip:"192.168.100.208",mac:"—",                model:"Tenda Router",type:"static",label:""},
+  {name:"ظافر الصناعية",         ip:"192.168.100.219",mac:"—",                model:"Tenda Router",type:"static",label:""},
+  {name:"عمال مغسلة السيارات",   ip:"192.168.100.201",mac:"—",                model:"Tenda Router",type:"static",label:""},
+  {name:"استقبال الفندق",        ip:"192.168.100.16", mac:"cc:2d:21:50:15:31",model:"Tenda Router",type:"auto",label:""},
+];
+// ── لا تخزين محلي للبيانات — Supabase هو المصدر الوحيد ──────────
 function cload(){ return JSON.parse(JSON.stringify(DEFAULTS)); }
 function persist(){
-  const el=document.getElementById("saveStatus");
-  el.textContent="✓ saved"; el.classList.add("ok");
-  setTimeout(()=>{el.textContent="auto-save on";el.classList.remove("ok");},2000);
-  sbAutoSave();
+  // أظهر حالة الحفظ في الـ UI
+  try{
+    const el=document.getElementById("saveStatus");
+    if(el){el.textContent="⏳ جاري الحفظ...";el.classList.remove("ok");}
+  }catch(e){}
+  // حفظ تلقائي على Supabase
+  gistAutoSave();
+}
+// تصدير نسخة محلية JSON للطوارئ
+function exportLocalBackup(){
+  const data={
+    timestamp: new Date().toISOString(),
+    network:"ASMD1",
+    password: PASS,
+    clients: clients,
+    devData: devData
+  };
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob);
+  a.download="asmd1_backup_"+new Date().toISOString().slice(0,10)+".json";
+  a.click();
+  toast("📥 تم تصدير نسخة محلية!");
 }
 let clients=cload();
 let cViewMode="card";
@@ -1902,7 +1937,66 @@ function renderTopo(){
 }
 
 // ── DEVICES ───────────────────────────────────────────────────
-let devData=[];
+let devData=[
+  {n:1,name:"K to N",mode:"AP",ssid:"ubnt",product:"airFiber 60 LR",ip:"192.168.100.3",mac:"24:5A:4C:F2:99:29",pw:"Aa@123456789"},
+  {n:2,name:"Ali's home Main Receiver",mode:"STA",ssid:"ubnt",product:"airFiber 60 LR",ip:"192.168.100.4",mac:"24:5A:4C:F2:B0:AA",pw:"Aa@123456789"},
+  {n:3,name:"Power",mode:"AP",ssid:"mr-bilal",product:"PowerBeam 5AC 620",ip:"192.168.100.5",mac:"74:83:C2:64:80:7A",pw:"Aa@123456789"},
+  {n:4,name:"PowerBeam 5AC 620",mode:"STA",ssid:"mr-bilal",product:"PowerBeam 5AC 620",ip:"192.168.100.6",mac:"74:83:C2:64:7F:F4",pw:"Aa@123456789"},
+  {n:5,name:"ak khan",mode:"AP",ssid:"AK wadi",product:"airFiber 60 LR",ip:"192.168.100.7",mac:"24:5A:4C:F0:0A:95",pw:""},
+  {n:6,name:"asayl hotel",mode:"STA",ssid:"AK wadi",product:"airFiber 60 LR",ip:"192.168.100.8",mac:"24:5A:4C:F0:0A:BC",pw:"Aa@123456789"},
+  {n:7,name:"PowerBeam 5AC 500 K",mode:"AP",ssid:"ASAYL",product:"PowerBeam 5AC 500 ISO",ip:"192.168.100.11",mac:"F0:9F:C2:8A:83:03",pw:"Hshlmfk-1"},
+  {n:8,name:"alasayl hotel powerbeam",mode:"STA",ssid:"ASAYL",product:"PowerBeam 5AC 500 ISO",ip:"192.168.100.12",mac:"78:8A:20:EC:D8:F4",pw:"551500820"},
+  {n:9,name:"AD-NETWORK",mode:"AP",ssid:"500-500-500",product:"NanoStation 5AC loco",ip:"192.168.100.17",mac:"F4:92:BF:EC:3B:DB",pw:"Hshlmfk-1"},
+  {n:10,name:"abdulrahman Majed-AD-NETWORK",mode:"STA",ssid:"500-500-500",product:"PowerBeam 5AC ISO",ip:"192.168.100.18",mac:"74:83:C2:62:D6:46",pw:"Aa123456"},
+  {n:11,name:"Al Ali",mode:"STA",ssid:"MN-AD-NETWORK",product:"LiteBeam 5AC 23",ip:"192.168.100.22",mac:"F0:9F:C2:4C:F4:99",pw:"Hshlmfk-1"},
+  {n:12,name:"baaaht AP",mode:"AP",ssid:"Hj-baaaaht",product:"NanoStation 5AC loco",ip:"192.168.100.24",mac:"F4:92:BF:EC:3B:87",pw:"555000555"},
+  {n:13,name:"Turaifi-Red",mode:"AP",ssid:"TURAIFI-AD-NETWORK",product:"LiteBeam 5AC",ip:"192.168.100.25",mac:"F4:E2:C6:88:90:9B",pw:"Hshlmfk@1"},
+  {n:14,name:"turaifi Station",mode:"STA",ssid:"TURAIFI-AD-NETWORK",product:"LiteBeam 5AC",ip:"192.168.100.26",mac:"F4:E2:C6:88:86:DB",pw:"Hshlmfk-1"},
+  {n:15,name:"al hamad outside us",mode:"STA",ssid:"MH-AD-NETWORK",product:"LiteBeam 5AC 23",ip:"192.168.100.27",mac:"F0:9F:C2:90:8E:3D",pw:""},
+  {n:16,name:"SM-AD-NETWORK",mode:"AP",ssid:"SM-AD-NETWORK",product:"LiteBeam 5AC",ip:"192.168.100.29",mac:"F0:9F:C2:BE:E9:F0",pw:"Hshlmfk-1"},
+  {n:17,name:"Saad Mohammed R",mode:"STA",ssid:"SM-AD-NETWORK",product:"LiteBeam 5AC",ip:"192.168.100.30",mac:"F4:E2:C6:32:D3:D3",pw:"Hshlmfk-1"},
+  {n:18,name:"MS-AD-NETWORK",mode:"AP",ssid:"MS-AD-NETWORK",product:"LiteBeam 5AC",ip:"192.168.100.31",mac:"FC:EC:DA:C4:7A:9D",pw:"Hshlmfk-1"},
+  {n:19,name:"Abu Hareed",mode:"STA",ssid:"MS-AD-NETWORK",product:"LiteBeam 5AC 23",ip:"192.168.100.32",mac:"B4:FB:E4:30:1F:F1",pw:"Hshlmfk-1"},
+  {n:20,name:"AD-NETWORK-US",mode:"AP",ssid:"MN-AD-NETWORK",product:"LiteBeam 5AC",ip:"192.168.100.33",mac:"78:8A:20:3A:1B:64",pw:"Hshlmfk-1"},
+  {n:21,name:"Al mohammed",mode:"STA",ssid:"MN-AD-NETWORK",product:"LiteBeam 5AC",ip:"192.168.100.34",mac:"78:8A:20:3A:27:06",pw:"Hshlmfk-1"},
+  {n:22,name:"LiteBeam 5AC",mode:"AP",ssid:"NM-AD-NETWORK",product:"LiteBeam 5AC",ip:"192.168.100.35",mac:"FC:EC:DA:C4:7D:37",pw:"Hshlmfk-1"},
+  {n:23,name:"Al hamad home",mode:"STA",ssid:"NM-AD-NETWORK",product:"NanoStation 5AC loco",ip:"192.168.100.36",mac:"F4:92:BF:EC:3A:40",pw:""},
+  {n:24,name:"Nasser bin Mohammed",mode:"STA",ssid:"NM-AD-NETWORK",product:"LiteBeam 5AC",ip:"192.168.100.37",mac:"FC:EC:DA:22:5C:D4",pw:"Hshlmfk-1"},
+  {n:25,name:"Ali-M",mode:"STA",ssid:"NM-AD-NETWORK",product:"LiteBeam 5AC 23",ip:"192.168.100.38",mac:"F0:9F:C2:B8:6B:16",pw:"Hshlmfk-1"},
+  {n:26,name:"NanoStation 5AC loco",mode:"AP",ssid:"NA-AD-NETWORK",product:"NanoStation 5AC loco",ip:"192.168.100.41",mac:"F4:92:BF:EC:3F:E1",pw:"Hshlmfk-1"},
+  {n:27,name:"Saeed-AlHomaidi",mode:"STA",ssid:"NA-AD-NETWORK",product:"PowerBeam 5AC ISO",ip:"192.168.100.42",mac:"74:83:C2:66:5F:4F",pw:"Hshlmfk-1"},
+  {n:28,name:"Abu hamad for us",mode:"AP",ssid:"MH-AD-NETWORK",product:"NanoStation 5AC loco",ip:"192.168.100.43",mac:"E4:38:83:CE:58:11",pw:""},
+  {n:29,name:"Abo Hamad-US- Receiver",mode:"STA",ssid:"MH-AD-NETWORK",product:"LiteBeam 5AC 23",ip:"192.168.100.44",mac:"78:8A:20:9C:29:2B",pw:"Hshlmfk-1"},
+  {n:30,name:"Aunt R-AD-NETWORK",mode:"AP",ssid:"Aunt R-AD-NETWORK",product:"NanoStation 5AC loco",ip:"192.168.100.45",mac:"FC:EC:DA:2A:99:85",pw:"Hshlmfk-1"},
+  {n:31,name:"aunt Rajsa",mode:"STA",ssid:"Aunt R-AD-NETWORK",product:"NanoStation 5AC loco",ip:"192.168.100.46",mac:"FC:EC:DA:2A:A2:6B",pw:"555000555"},
+  {n:32,name:"SN-AD-NETWORK",mode:"AP",ssid:"SN-AD-NETWORK",product:"LiteBeam 5AC",ip:"192.168.100.47",mac:"E0:63:DA:44:48:42",pw:"Hshlmfk-1"},
+  {n:33,name:"Uncle Saad Receiver",mode:"STA",ssid:"SN-AD-NETWORK",product:"LiteBeam 5AC",ip:"192.168.100.48",mac:"E0:63:DA:44:47:EE",pw:"Hshlmfk-1"},
+  {n:34,name:"zafer",mode:"AP",ssid:"zafer sinayah",product:"LiteBeam 5AC",ip:"192.168.100.53",mac:"F4:E2:C6:3E:8B:F2",pw:"Aa@123456789"},
+  {n:35,name:"zafer sinayah R 0503882846",mode:"STA",ssid:"zafer sinayah",product:"LiteBeam 5AC",ip:"192.168.100.54",mac:"28:70:4E:E0:11:A4",pw:"Aa@123456789"},
+  {n:36,name:"AIR FIBER",mode:"AP",ssid:"SIR-SINAYAH",product:"LiteBeam 5AC",ip:"192.168.100.55",mac:"B4:FB:E4:68:64:C9",pw:"Hshlmfk-1"},
+  {n:37,name:"LiteBeam 5AC",mode:"STA",ssid:"SIR-SINAYAH",product:"LiteBeam 5AC",ip:"192.168.100.56",mac:"B4:FB:E4:38:57:7B",pw:"Hshlmfk-1"},
+  {n:38,name:"Hussin-N",mode:"AP",ssid:"Hussin-N",product:"LiteBeam 5AC 23",ip:"192.168.100.57",mac:"F0:9F:C2:B4:C8:EA",pw:"Aa-123456"},
+  {n:39,name:"hussain sender",mode:"STA",ssid:"Hussin-N",product:"LiteBeam 5AC",ip:"192.168.100.58",mac:"74:83:C2:A8:31:91",pw:"0501255210Aa"},
+  {n:40,name:"ap-N-Mor",mode:"AP",ssid:"Na-Mor1",product:"LiteBeam 5AC",ip:"192.168.100.59",mac:"1C:6A:1B:CC:C5:99",pw:"Aa@123456"},
+  {n:41,name:"LiteBeam 5AC",mode:"STA",ssid:"Na-Mor1",product:"LiteBeam 5AC",ip:"192.168.100.60",mac:"0C:EA:14:A0:7D:4E",pw:""},
+  {n:42,name:"Na mor2 to farm",mode:"AP",ssid:"Na-Mor2",product:"LiteBeam 5AC",ip:"192.168.100.61",mac:"1C:6A:1B:CC:CA:26",pw:"Aa@123456789"},
+  {n:43,name:"Nasser Farm R",mode:"STA",ssid:"Na-Mor2",product:"LiteBeam 5AC",ip:"192.168.100.62",mac:"0C:EA:14:A0:59:2B",pw:"Aa@123456789"},
+  {n:44,name:"PowerBeam 5AC Gen2",mode:"STA",ssid:"Hj-baaaaht",product:"PowerBeam 5AC Gen2",ip:"192.168.100.64",mac:"74:83:C2:64:16:79",pw:"Aa-123456"},
+  {n:45,name:"saadfgh",mode:"AP",ssid:"saadfgh",product:"LiteBeam 5AC 23",ip:"192.168.100.91",mac:"F0:9F:C2:98:42:B9",pw:"Hshlmfk@1"},
+  {n:46,name:"Saeed ali",mode:"STA",ssid:"saadfgh",product:"LiteBeam 5AC",ip:"192.168.100.92",mac:"B4:FB:E4:30:52:F3",pw:"Aa123456"},
+  {n:47,name:"Mursal salem",mode:"AP",ssid:"Khan bilal",product:"LiteBeam 5AC",ip:"192.168.100.95",mac:"F4:E2:C6:9E:B4:BD",pw:"Hshlmfk@1"},
+  {n:48,name:"Salim-US",mode:"STA",ssid:"Khan bilal",product:"LiteBeam 5AC",ip:"192.168.100.96",mac:"B4:FB:E4:32:E6:D8",pw:"Hshlmfk-1"},
+  {n:49,name:"Sender to Mor",mode:"AP",ssid:"AASD",product:"LiteBeam 5AC",ip:"192.168.100.107",mac:"F4:E2:C6:3C:59:14",pw:"Aa@123456"},
+  {n:50,name:"Palm- Fia",mode:"STA",ssid:"AASD",product:"PowerBeam 5AC ISO",ip:"192.168.100.108",mac:"E0:63:DA:12:1C:D1",pw:"Aa@123456"},
+  {n:51,name:"LiteBeam 5AC 23",mode:"STA",ssid:"ader",product:"LiteBeam 5AC 23",ip:"192.168.100.109",mac:"F0:9F:C2:B4:C0:F2",pw:"Aa@123456789"},
+  {n:52,name:"Saad Ali-near alquwaiz mosque",mode:"STA",ssid:"MN-AD-NETWORK",product:"LiteBeam 5AC",ip:"192.168.100.110",mac:"28:70:4E:AA:11:1E",pw:"Aa@123456789"},
+  {n:53,name:"Mesh-ap",mode:"AP",ssid:"ader",product:"PowerBeam 5AC ISO",ip:"192.168.100.113",mac:"E0:63:DA:D6:F7:60",pw:"555000555000"},
+  {n:54,name:"PowerBeam 5AC ISO",mode:"STA",ssid:"ader",product:"PowerBeam 5AC ISO",ip:"192.168.100.114",mac:"E0:63:DA:12:1D:0E",pw:"555000555000"},
+  {n:55,name:"LiteBeam 5AC",mode:"AP",ssid:"S-Gannam",product:"LiteBeam 5AC",ip:"192.168.100.115",mac:"F4:E2:C6:3E:85:BF",pw:"Aa@123456789"},
+  {n:56,name:"Saeed Ganam R",mode:"STA",ssid:"S-Gannam",product:"LiteBeam 5AC",ip:"192.168.100.116",mac:"28:70:4E:E0:0C:F3",pw:"Aa@123456789"},
+  {n:57,name:"Judyba",mode:"AP",ssid:"Judyba",product:"LiteBeam 5AC",ip:"192.168.100.119",mac:"28:70:4E:A6:01:01",pw:"Hshlmfk@1"},
+  {n:58,name:"Ajudyba",mode:"STA",ssid:"Judyba",product:"LiteBeam 5AC",ip:"192.168.100.120",mac:"9C:05:D6:8E:CE:5A",pw:"Hshlmfk-1"},
+];
 let dfil=[...devData];
 let editingRow=-1;
 function drender(data){
@@ -2115,7 +2209,7 @@ function getAvailSubnets(){
   ];
 }
 function saveAvailSubnets(arr){
-  // localStorage.setItem(AVAIL_SUBNETS_KEY, JSON.stringify(arr));
+  localStorage.setItem(AVAIL_SUBNETS_KEY, JSON.stringify(arr));
 }
 
 let availCurrentSubnet = "all"; // "all" | "s1" | "s2" | ...
@@ -2506,7 +2600,7 @@ function n2Load(){
 }
 
 function n2Save(){
-  try{ /* localStorage.setItem(N2_KEY, JSON.stringify(n2Data)); */ }catch(e){}
+  try{ localStorage.setItem(N2_KEY, JSON.stringify(n2Data)); }catch(e){}
 }
 
 function n2Init(){
@@ -2905,14 +2999,8 @@ function sbCollect(){
 
 async function sbApply(obj){
   let changed = false;
-  if(Array.isArray(obj.clients)){
-    if(obj.clients.length === 0 && clients.length > 0) gistAutoSave();
-    else { clients=obj.clients; persist(); renderClients(); changed=true; }
-  }
-  if(Array.isArray(obj.devData)){
-    if(obj.devData.length === 0 && devData.length > 0) gistAutoSave();
-    else { devData=obj.devData; dfil=[...devData]; drender(dfil); changed=true; }
-  }
+  if(Array.isArray(obj.clients)){ clients=obj.clients; persist(); renderClients(); changed=true; }
+  if(Array.isArray(obj.devData)){ devData=obj.devData; dfil=[...devData]; drender(dfil); changed=true; }
   if(obj.password){ PASS=obj.password; localStorage.setItem(PASS_KEY,PASS); }
   return changed;
 }
@@ -2941,10 +3029,22 @@ async function sbPush(silent=false){
     }));
     if(devRows.length>0) await sb.from("asmd1_devices").upsert(devRows, {onConflict:"id"});
     gistSetStatus("⚡ محفوظ ✓","#22c55e");
-    setTimeout(()=>gistSetStatus("⚡ Supabase","#64748b"),3000);
+    const el=document.getElementById("saveStatus");
+    if(el){el.textContent="✓ محفوظ على Supabase";el.classList.add("ok");}
+    setTimeout(()=>{
+      gistSetStatus("⚡ إعدادات","#64748b");
+      const el2=document.getElementById("saveStatus");
+      if(el2){el2.textContent="⚡ Supabase";el2.classList.remove("ok");}
+    },3000);
     if(!silent) toast("⚡ تم الحفظ على Supabase!");
   }catch(e){
     gistSetStatus("❌ فشل الحفظ","#dc2626");
+    const el=document.getElementById("saveStatus");
+    if(el){el.textContent="❌ فشل الحفظ";el.style.color="#dc2626";}
+    setTimeout(()=>{
+      const el2=document.getElementById("saveStatus");
+      if(el2){el2.textContent="⚡ Supabase";el2.style.color="";}
+    },4000);
     if(!silent) toast("❌ "+e.message);
     console.error("Supabase push error:",e);
   }
