@@ -3117,13 +3117,63 @@ function gistSetStatus(text,color){
 }
 function gistSetupModal(){ openSupabaseSetupModal(); }
 
-// Auto-load on startup
-(async function sbAutoLoad(){
+
+// ── sbPullSafe: لا تمسح البيانات المحلية إذا Supabase فارغ ─────────
+async function sbPullSafe(){
   const sb=getSupabase();
-  if(!sb) return;
+  if(!sb){ gistSetStatus("⚡ اتصل بـ Supabase","#f59e0b"); return; }
   gistSetStatus("⏳ جاري التحميل...","#f59e0b");
   try{
-    await sbPull();
+    const {data:cData,error:cErr} = await sb.from("asmd1_clients").select("*").order("id");
+    if(cErr) throw cErr;
+    const {data:dData,error:dErr} = await sb.from("asmd1_devices").select("*").order("id");
+    if(dErr) throw dErr;
+
+    // إذا Supabase فارغ → ارفع البيانات المحلية عليه
+    if((!cData || cData.length===0) && clients.length>0){
+      gistSetStatus("⬆️ Supabase فارغ — جاري الرفع...","#f59e0b");
+      await sbPush(true);
+      gistSetStatus("✅ تم رفع البيانات المحلية","#22c55e");
+      setTimeout(()=>gistSetStatus("⚡ إعدادات","#64748b"),3000);
+      return;
+    }
+
+    // Supabase فيه بيانات → طبّقها
+    if(cData && cData.length>0){
+      const obj = {
+        clients: cData.map(r=>({
+          name:r.name,ip:r.ip,mac:r.mac,
+          model:r.model,type:r.type,
+          label:r.label,rowColor:r.row_color
+        })),
+        devData: (dData||[]).map(r=>({
+          n:r.n,name:r.name,mode:r.mode,
+          ssid:r.ssid,product:r.product,
+          ip:r.ip,mac:r.mac,pw:r.pw,rowColor:r.row_color
+        }))
+      };
+      await sbApply(obj);
+      gistSetStatus("✅ تمت المزامنة","#22c55e");
+      setTimeout(()=>gistSetStatus("⚡ إعدادات","#64748b"),3000);
+    } else {
+      gistSetStatus("⚡ إعدادات","#64748b");
+    }
+  }catch(e){
+    gistSetStatus("❌ فشل الاتصال","#dc2626");
+    console.error("sbPullSafe error:",e);
+  }
+}
+
+// Auto-load on startup — لا نمسح البيانات المحلية إلا إذا Supabase فيه بيانات فعلية
+(async function sbAutoLoad(){
+  const sb=getSupabase();
+  if(!sb){
+    gistSetStatus("⚡ اتصل بـ Supabase","#f59e0b");
+    return;
+  }
+  gistSetStatus("⏳ جاري التحميل...","#f59e0b");
+  try{
+    await sbPullSafe(); // نسخة آمنة لا تمسح البيانات المحلية
   }catch(e){
     gistSetStatus("⚡ Supabase","#94a3b8");
     console.log("Supabase auto-load:",e.message);
