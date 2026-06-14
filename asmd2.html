@@ -238,7 +238,8 @@ tr:hover td{background:#f8fafc;}
 <div id="toast"></div>
 <nav>
   <h1>📡 ASMD2 — Network Manager</h1>
-  <span class="saved" id="saveStatus">⚡ Supabase</span>
+  <span id="saveStatus">⚡ Supabase</span>
+  <span style="font-size:10px;color:#94a3b855;margin-left:4px;letter-spacing:0.5px;">Mac: ⌘S &nbsp;|&nbsp; Win: Ctrl+S</span>
   <button onclick="window.open('network_inventory.html','_blank')" style="padding:5px 12px;background:#1a4731;color:#fff;border:none;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;margin-left:8px;">🌐 Open ASMD1</button>
   <span id="gistStatus" onclick="gistSetupModal()" style="font-size:11px;color:#64748b;cursor:pointer;padding:5px 10px;border:1px solid #e2e8f0;border-radius:7px;background:#f8fafc;font-weight:600;" title="إعدادات Supabase">⚡ إعدادات</span>
   <button onclick="gistPush()" style="padding:5px 10px;background:#22c55e;color:#fff;border:none;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;" title="رفع إلى Supabase">⬆️</button>
@@ -2907,6 +2908,7 @@ async function sbPush(silent=false){
     gistSetStatus("⚡ محفوظ ✓","#22c55e");
     const el=document.getElementById("saveStatus");
     if(el){el.textContent="✓ محفوظ على Supabase";el.classList.add("ok");}
+    markSaved();
     setTimeout(()=>{
       gistSetStatus("⚡ إعدادات","#64748b");
       const el2=document.getElementById("saveStatus");
@@ -2969,9 +2971,49 @@ function gistPush(silent=false){
   }
 }
 function gistPull(){ return sbPullSafe(); }
+
+// ── تتبع التعديلات غير المحفوظة ──────────────────────────────────
+let _unsaved = false;
+
+function markUnsaved(){
+  _unsaved = true;
+  const el = document.getElementById("saveStatus");
+  if(el){ el.textContent = "⚠️ تعديلات غير محفوظة"; el.style.color="#f59e0b"; }
+}
+function markSaved(){
+  _unsaved = false;
+  const el = document.getElementById("saveStatus");
+  if(el){ el.textContent = "✓ محفوظ ✅"; el.style.color="#22c55e"; }
+  setTimeout(()=>{
+    const el2 = document.getElementById("saveStatus");
+    if(el2){ el2.textContent="⚡ Supabase"; el2.style.color=""; }
+  }, 3000);
+}
+
+// اختصار الحفظ Cmd+S / Ctrl+S
+document.addEventListener("keydown", function(e){
+  if((e.metaKey || e.ctrlKey) && e.key === "s"){
+    e.preventDefault();
+    gistPush(false);
+    toast("💾 جاري الحفظ على Supabase...");
+  }
+});
+
+// تنبيه قبل إغلاق الصفحة
+window.addEventListener("beforeunload", function(e){
+  if(_unsaved){
+    e.preventDefault();
+    e.returnValue = "⚠️ يوجد تعديلات غير محفوظة — هل تريد المغادرة؟";
+    return e.returnValue;
+  }
+});
+
 function gistAutoSave(){
+  markUnsaved();
   clearTimeout(gistSaveTimer);
-  gistSaveTimer=setTimeout(()=>sbPush(true),4000);
+  gistSaveTimer=setTimeout(()=>{
+    sbPush(true).then(()=>markSaved()).catch(()=>{});
+  },4000);
 }
 function sbAutoSave(){ gistAutoSave(); }
 function gistSetStatus(text,color){
