@@ -1867,13 +1867,34 @@ function importSettings(){
 }
 
 function unlockApp(){
-  var password = document.getElementById("pwInput").value;
-  
-  if(password === "asmd"){
-    var lockScreen = document.getElementById("lockScreen");
-    if(lockScreen){
-      lockScreen.style.display = "none";
+  try {
+    const password = document.getElementById("pwInput").value;
+    
+    if(password === PASS){
+      // Hide lock screen
+      const lockScreen = document.getElementById("lockScreen");
+      if(lockScreen){
+        lockScreen.style.display = "none";
+        lockScreen.style.visibility = "hidden";
+        lockScreen.style.pointerEvents = "none";
+      }
+      
+      // Mark as unlocked
+      setUnlocked();
+      
+      // Focus on main content
+      document.getElementById("navbar").focus();
+    } else {
+      // Show error
+      alert("❌ كلمة المرور خاطئة\n\nIncorrect password");
+      document.getElementById("pwInput").value = "";
+      document.getElementById("pwInput").focus();
     }
+  } catch(e){
+    console.error("Unlock error:", e);
+    alert("Error: " + e.message);
+  }
+}
   } else {
     alert("كلمة المرور خاطئة\n\nIncorrect password");
     document.getElementById("pwInput").value = "";
@@ -1937,12 +1958,21 @@ function saveNewPassword(){
   lockApp();
 }
 
-document.getElementById("pwInput").addEventListener("keydown", function(event){
-  if(event.key === "Enter" || event.keyCode === 13){
-    event.preventDefault();
-    unlockApp();
+(function(){
+  try {
+    const pwInput = document.getElementById("pwInput");
+    if(pwInput){
+      pwInput.addEventListener("keydown", function(event){
+        if(event.key === "Enter" || event.keyCode === 13){
+          event.preventDefault();
+          unlockApp();
+        }
+      });
+    }
+  } catch(e) {
+    console.log("Keydown handler error:", e);
   }
-});
+})();
 
 // ── TOAST ────────────────────────────────────────────────────
 function toast(msg){const t=document.getElementById("toast");t.textContent=msg;t.classList.add("show");setTimeout(()=>t.classList.remove("show"),2000);}
@@ -2356,7 +2386,21 @@ function showTab(t,el){
 
 renderClients();
 </script>
-</body>
+<script>
+// Debug: Skip lock if already unlocked in session
+window.addEventListener("DOMContentLoaded", function(){
+  try {
+    if(shouldSkipLock()){
+      const lockScreen = document.getElementById("lockScreen");
+      if(lockScreen){
+        lockScreen.style.display = "none";
+      }
+    }
+  } catch(e) {
+    console.log("Auto-unlock check failed");
+  }
+});
+</script></body>
 </html
 <!-- ═══ IMPORT DEVICES ═══ -->
 <div class="page" id="tab-import">
